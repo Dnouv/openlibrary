@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import datetime
 import itertools
 import logging
@@ -54,7 +52,7 @@ data_provider = cast(DataProvider, None)
 _ia_db = None
 
 solr_base_url = None
-solr_next: bool | None = None
+solr_next: Optional[bool] = None
 
 
 def get_solr_base_url():
@@ -101,7 +99,7 @@ class IALiteMetadata(TypedDict):
     collection: set[str]
 
 
-def get_ia_collection_and_box_id(ia: str) -> IALiteMetadata | None:
+def get_ia_collection_and_box_id(ia: str) -> Optional[IALiteMetadata]:
     """
     Get the collections and boxids of the provided IA id
 
@@ -199,7 +197,7 @@ def pick_cover_edition(editions, work_cover_id):
     )
 
 
-def pick_number_of_pages_median(editions: list[dict]) -> int | None:
+def pick_number_of_pages_median(editions: list[dict]) -> Optional[int]:
     number_of_pages = [
         cast(int, e.get('number_of_pages'))
         for e in editions
@@ -603,10 +601,9 @@ class SolrProcessor:
             add_list('publish_year', pub_years)
             add('first_publish_year', min(int(y) for y in pub_years))
 
-        if get_solr_next():
-            number_of_pages_median = pick_number_of_pages_median(editions)
-            if number_of_pages_median:
-                add('number_of_pages_median', number_of_pages_median)
+        number_of_pages_median = pick_number_of_pages_median(editions)
+        if number_of_pages_median:
+            add('number_of_pages_median', number_of_pages_median)
 
         field_map = [
             ('lccn', 'lccn'),
@@ -826,7 +823,7 @@ def build_data(w: dict) -> SolrDocument:
 
 
 def build_data2(
-    w: dict, editions: list[dict], authors, ia: dict[str, IALiteMetadata | None]
+    w: dict, editions: list[dict], authors, ia: dict[str, Optional[IALiteMetadata]]
 ) -> SolrDocument:
     """
     Construct the Solr document to insert into Solr for the given work
@@ -1342,7 +1339,7 @@ def update_work(work: dict) -> list[SolrUpdateRequest]:
 
 def update_author(
     akey, a=None, handle_redirects=True
-) -> list[SolrUpdateRequest] | None:
+) -> Optional[list[SolrUpdateRequest]]:
     """
     Get the Solr requests necessary to insert/update/delete an Author in Solr.
     :param akey: The author key, e.g. /authors/OL23A
@@ -1658,7 +1655,7 @@ def load_configs(
     c_host: str,
     c_config: str,
     c_data_provider: (
-        DataProvider | Literal['default', 'legacy', 'external']
+        Union[DataProvider, Literal['default', 'legacy', 'external']]
     ) = 'default',
 ) -> DataProvider:
     host = web.lstrips(c_host, "http://").strip("/")
@@ -1699,7 +1696,7 @@ def main(
     profile=False,
     data_provider: Literal['default', 'legacy', 'external'] = "default",
     solr_base: str = None,
-    solr_next=True,
+    solr_next=False,
     update: Literal['update', 'print'] = 'update',
 ):
     """

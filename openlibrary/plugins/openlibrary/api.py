@@ -21,7 +21,7 @@ from openlibrary.utils import extract_numeric_id_from_olid
 from openlibrary.plugins.worksearch.subjects import get_subject
 from openlibrary.accounts.model import OpenLibraryAccount
 from openlibrary.core import ia, db, models, lending, helpers as h
-from openlibrary.core.observations import Observations
+from openlibrary.core.observations import Observations, get_observation_metrics
 from openlibrary.core.models import Booknotes, Work
 from openlibrary.core.sponsorships import qualifies_for_sponsorship
 from openlibrary.core.vendors import (
@@ -94,11 +94,48 @@ class ratings(delegate.page):
     path = r"/works/OL(\d+)W/ratings"
     encoding = "json"
 
+    @jsonapi
+    def GET(self, work_id):
+        from openlibrary.core.ratings import Ratings
+        stats = Ratings.get_work_ratings_summary(work_id)
+
+        if stats:
+            return json.dumps({
+                'summary': {
+                    'average': stats['ratings_average'],
+                    'count': stats['ratings_count'],
+                },
+                'counts': {
+                    '1': stats['ratings_count_1'],
+                    '2': stats['ratings_count_2'],
+                    '3': stats['ratings_count_3'],
+                    '4': stats['ratings_count_4'],
+                    '5': stats['ratings_count_5'],
+                },
+            })
+        else:
+            return json.dumps({
+                'summary': {
+                    'average': None,
+                    'count': 0,
+                },
+                'counts': {
+                    '1': 0,
+                    '2': 0,
+                    '3': 0,
+                    '4': 0,
+                    '5': 0,
+                },
+            })
+
+
     def POST(self, work_id):
         """Registers new ratings for this work"""
         user = accounts.get_current_user()
-        i = web.input(edition_id=None, rating=None, redir=False)
-        key = i.edition_id if i.edition_id else ('/works/OL%sW' % work_id)
+        i = web.input(edition_id=None, rating=None, redir=False, redir_url=None, page=None)
+        key = (i.redir_url if i.redir_url else
+            i.edition_id if i.edition_id else
+            ('/works/OL%sW' % work_id))
         edition_id = (
             int(extract_numeric_id_from_olid(i.edition_id)) if i.edition_id else None
         )
@@ -131,6 +168,11 @@ class ratings(delegate.page):
             r = response('rating added')
 
         if i.redir:
+            p = h.safeint(i.page, 1)
+            query_params = f'?page={p}' if p > 1 else ''
+            if i.page:
+                raise web.seeother(f'{key}{query_params}')
+
             raise web.seeother(key)
         return r
 
@@ -453,7 +495,11 @@ class price_api(delegate.page):
         return json.dumps(metadata)
 
 
-class patron_observations(delegate.page):
+class patrons_observations(delegate.page):
+    """
+    Fetches a patron's observations for a work, requires auth, intended
+    to be used internally to power the My Books Page & books pages modal
+    """
     path = r"/works/OL(\d+)W/observations"
     encoding = "json"
 
@@ -510,6 +556,25 @@ class patron_observations(delegate.page):
             )
 
         return response('Observations removed')
+
+
+class public_observations(delegate.page):
+    """
+    Public observations fetches anonymized community reviews
+    for a list of works. Useful for decorating search results.
+    """
+    path = '/observations'
+    encoding = 'json'
+
+    def GET(self):
+        i = web.input(olid=[])
+        works = i.olid
+        metrics = {w: get_observation_metrics(w) for w in works}
+
+        return delegate.RawText(
+            json.dumps({'observations': metrics}),
+            content_type='application/json'
+        )
 
 
 class work_delete(delegate.page):
