@@ -97,7 +97,7 @@ class Biblio:
         # e.g. "5.4 x 4.7 x 0.2 inches"
         self.length, self.width, self.height = data[40:43]
 
-        # Assert importable                                                                                                                                                                            
+        # Assert importable
         for field in self.REQUIRED_FIELDS + ['isbn_13']:
             assert getattr(self, field)
         assert self.primary_format not in self.NONBOOK
