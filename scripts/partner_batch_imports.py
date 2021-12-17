@@ -24,7 +24,6 @@ load_config(
                     os.sep, 'olsystem', 'etc', 'openlibrary.yml')))
 from openlibrary.core.imports import Batch
 
-
 logger = logging.getLogger("openlibrary.importer.bwb")
 
 SCHEMA_URL = (
@@ -157,7 +156,12 @@ def update_state(logfile, fname, line_num=0):
 
 def csv_to_ol_json_item(line):
     """converts a line to a book item"""
-    b = Biblio(line.strip().split('|'))
+    try:
+        data = line.strip().split('|')
+    except UnicodeDecodeError:
+        data = line.decode('ISO-8859-1').strip().split('|')
+
+    b = Biblio(data)
     return {'ia_id': b.source_id, 'data': b.json()}
 
 
@@ -167,7 +171,7 @@ def batch_import(path, batch, batch_size=5000):
 
     for fname in filenames:
         book_items = []
-        with open(fname, 'r', encoding="ISO-8859-1") as f:
+        with open(fname, 'rb') as f:
             logger.info(f"Processing: {fname} from line {offset}")
             for line_num, line in enumerate(f):
 
@@ -179,8 +183,6 @@ def batch_import(path, batch, batch_size=5000):
 
                 try:
                     book_items.append(csv_to_ol_json_item(line))
-                except UnicodeDecodeError:
-                    pass
                 except AssertionError as e:
                     logger.info(f"Error: {e} from {line}")
 
